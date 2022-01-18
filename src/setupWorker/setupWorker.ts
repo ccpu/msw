@@ -153,7 +153,9 @@ export function setupWorker(
       },
     },
     useFallbackMode:
-      !('serviceWorker' in navigator) || location.protocol === 'file:',
+      (window as any).__MSW_FALLBACK_MODE ||
+      !('serviceWorker' in navigator) ||
+      location.protocol === 'file:',
   }
 
   const startHandler = context.useFallbackMode
@@ -226,3 +228,4 @@ export function setupWorker(
     },
   }
 }
+;(window as any).__MSW_PACKAGE = 'MSW_FORK'
