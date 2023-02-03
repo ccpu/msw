@@ -1,10 +1,10 @@
 /**
  * @jest-environment jsdom
  */
-import { parse } from 'graphql'
-import { Headers } from 'headers-utils/lib'
-import { context } from '..'
-import { createMockedRequest } from '../../test/support/utils'
+import { encodeBuffer } from '@mswjs/interceptors'
+import { OperationTypeNode, parse } from 'graphql'
+import { Headers } from 'headers-polyfill'
+import { context, MockedRequest, MockedRequestInit } from '..'
 import { response } from '../response'
 import {
   GraphQLContext,
@@ -13,7 +13,7 @@ import {
   GraphQLRequestBody,
   isDocumentNode,
 } from './GraphQLHandler'
-import { MockedRequest, ResponseResolver } from './RequestHandler'
+import { ResponseResolver } from './RequestHandler'
 
 const resolver: ResponseResolver<
   GraphQLRequest<{ userId: string }>,
@@ -33,22 +33,19 @@ function createGetGraphQLRequest(
   const requestUrl = new URL(hostname)
   requestUrl.searchParams.set('query', body?.query)
   requestUrl.searchParams.set('variables', JSON.stringify(body?.variables))
-  return createMockedRequest({
-    url: requestUrl,
-  })
+  return new MockedRequest(requestUrl)
 }
 
 function createPostGraphQLRequest(
   body: GraphQLRequestBody<any>,
   hostname = 'https://example.com',
-  initMockedRequest: Partial<MockedRequest> = {},
+  requestInit: MockedRequestInit = {},
 ) {
-  return createMockedRequest({
+  return new MockedRequest(new URL(hostname), {
     method: 'POST',
-    url: new URL(hostname),
-    ...initMockedRequest,
-    headers: new Headers({ 'Content-Type': 'application/json ' }),
-    body,
+    ...requestInit,
+    headers: new Headers({ 'Content-Type': 'application/json' }),
+    body: encodeBuffer(JSON.stringify(body)),
   })
 }
 
@@ -70,7 +67,12 @@ const LOGIN = `
 
 describe('info', () => {
   test('exposes request handler information for query', () => {
-    const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.QUERY,
+      'GetUser',
+      '*',
+      resolver,
+    )
 
     expect(handler.info.header).toEqual('query GetUser (origin: *)')
     expect(handler.info.operationType).toEqual('query')
@@ -78,7 +80,12 @@ describe('info', () => {
   })
 
   test('exposes request handler information for mutation', () => {
-    const handler = new GraphQLHandler('mutation', 'Login', '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.MUTATION,
+      'Login',
+      '*',
+      resolver,
+    )
 
     expect(handler.info.header).toEqual('mutation Login (origin: *)')
     expect(handler.info.operationType).toEqual('mutation')
@@ -94,7 +101,12 @@ describe('info', () => {
       }
     `)
 
-    const handler = new GraphQLHandler('query', node, '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.QUERY,
+      node,
+      '*',
+      resolver,
+    )
 
     expect(handler.info).toHaveProperty('header', 'query GetUser (origin: *)')
     expect(handler.info).toHaveProperty('operationType', 'query')
@@ -109,7 +121,12 @@ describe('info', () => {
         }
       }
     `)
-    const handler = new GraphQLHandler('mutation', node, '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.MUTATION,
+      node,
+      '*',
+      resolver,
+    )
 
     expect(handler.info).toHaveProperty('header', 'mutation Login (origin: *)')
     expect(handler.info).toHaveProperty('operationType', 'mutation')
@@ -125,7 +142,9 @@ describe('info', () => {
       }
     `)
 
-    expect(() => new GraphQLHandler('query', node, '*', resolver)).toThrow(
+    expect(
+      () => new GraphQLHandler(OperationTypeNode.QUERY, node, '*', resolver),
+    ).toThrow(
       'Failed to create a GraphQL handler: provided a DocumentNode with a mismatched operation type (expected "query", but got "mutation").',
     )
   })
@@ -134,7 +153,12 @@ describe('info', () => {
 describe('parse', () => {
   describe('query', () => {
     test('parses a query without variables (GET)', () => {
-      const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+      const handler = new GraphQLHandler(
+        OperationTypeNode.QUERY,
+        'GetUser',
+        '*',
+        resolver,
+      )
       const request = createGetGraphQLRequest({
         query: GET_USER,
       })
@@ -147,7 +171,12 @@ describe('parse', () => {
     })
 
     test('parses a query with variables (GET)', () => {
-      const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+      const handler = new GraphQLHandler(
+        OperationTypeNode.QUERY,
+        'GetUser',
+        '*',
+        resolver,
+      )
       const request = createGetGraphQLRequest({
         query: GET_USER,
         variables: {
@@ -165,7 +194,12 @@ describe('parse', () => {
     })
 
     test('parses a query without variables (POST)', () => {
-      const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+      const handler = new GraphQLHandler(
+        OperationTypeNode.QUERY,
+        'GetUser',
+        '*',
+        resolver,
+      )
       const request = createPostGraphQLRequest({
         query: GET_USER,
       })
@@ -178,7 +212,12 @@ describe('parse', () => {
     })
 
     test('parses a query with variables (POST)', () => {
-      const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+      const handler = new GraphQLHandler(
+        OperationTypeNode.QUERY,
+        'GetUser',
+        '*',
+        resolver,
+      )
       const request = createPostGraphQLRequest({
         query: GET_USER,
         variables: {
@@ -198,7 +237,12 @@ describe('parse', () => {
 
   describe('mutation', () => {
     test('parses a mutation without variables (GET)', () => {
-      const handler = new GraphQLHandler('mutation', 'GetUser', '*', resolver)
+      const handler = new GraphQLHandler(
+        OperationTypeNode.MUTATION,
+        'GetUser',
+        '*',
+        resolver,
+      )
       const request = createGetGraphQLRequest({
         query: LOGIN,
       })
@@ -211,7 +255,12 @@ describe('parse', () => {
     })
 
     test('parses a mutation with variables (GET)', () => {
-      const handler = new GraphQLHandler('mutation', 'GetUser', '*', resolver)
+      const handler = new GraphQLHandler(
+        OperationTypeNode.MUTATION,
+        'GetUser',
+        '*',
+        resolver,
+      )
       const request = createGetGraphQLRequest({
         query: LOGIN,
         variables: {
@@ -229,7 +278,12 @@ describe('parse', () => {
     })
 
     test('parses a mutation without variables (POST)', () => {
-      const handler = new GraphQLHandler('mutation', 'GetUser', '*', resolver)
+      const handler = new GraphQLHandler(
+        OperationTypeNode.MUTATION,
+        'GetUser',
+        '*',
+        resolver,
+      )
       const request = createPostGraphQLRequest({
         query: LOGIN,
       })
@@ -242,7 +296,12 @@ describe('parse', () => {
     })
 
     test('parses a mutation with variables (POST)', () => {
-      const handler = new GraphQLHandler('mutation', 'GetUser', '*', resolver)
+      const handler = new GraphQLHandler(
+        OperationTypeNode.MUTATION,
+        'GetUser',
+        '*',
+        resolver,
+      )
       const request = createPostGraphQLRequest({
         query: LOGIN,
         variables: {
@@ -263,7 +322,12 @@ describe('parse', () => {
 
 describe('predicate', () => {
   test('respects operation type', () => {
-    const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.QUERY,
+      'GetUser',
+      '*',
+      resolver,
+    )
     const request = createPostGraphQLRequest({
       query: GET_USER,
     })
@@ -278,7 +342,12 @@ describe('predicate', () => {
   })
 
   test('respects operation name', () => {
-    const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.QUERY,
+      'GetUser',
+      '*',
+      resolver,
+    )
     const request = createPostGraphQLRequest({
       query: GET_USER,
     })
@@ -316,7 +385,7 @@ describe('predicate', () => {
 
   test('respects custom endpoint', () => {
     const handler = new GraphQLHandler(
-      'query',
+      OperationTypeNode.QUERY,
       'GetUser',
       'https://api.github.com/graphql',
       resolver,
@@ -340,7 +409,12 @@ describe('predicate', () => {
 
 describe('test', () => {
   test('respects operation type', () => {
-    const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.QUERY,
+      'GetUser',
+      '*',
+      resolver,
+    )
     const request = createPostGraphQLRequest({
       query: GET_USER,
     })
@@ -353,7 +427,12 @@ describe('test', () => {
   })
 
   test('respects operation name', () => {
-    const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.QUERY,
+      'GetUser',
+      '*',
+      resolver,
+    )
     const request = createPostGraphQLRequest({
       query: GET_USER,
     })
@@ -373,7 +452,7 @@ describe('test', () => {
 
   test('respects custom endpoint', () => {
     const handler = new GraphQLHandler(
-      'query',
+      OperationTypeNode.QUERY,
       'GetUser',
       'https://api.github.com/graphql',
       resolver,
@@ -395,7 +474,12 @@ describe('test', () => {
 
 describe('run', () => {
   test('returns a mocked response given a matching query', async () => {
-    const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.QUERY,
+      'GetUser',
+      '*',
+      resolver,
+    )
     const request = createPostGraphQLRequest({
       query: GET_USER,
       variables: {
@@ -404,7 +488,7 @@ describe('run', () => {
     })
     const result = await handler.run(request)
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       handler,
       request: {
         ...request,
@@ -428,7 +512,12 @@ describe('run', () => {
   })
 
   test('returns null given a non-matching query', async () => {
-    const handler = new GraphQLHandler('query', 'GetUser', '*', resolver)
+    const handler = new GraphQLHandler(
+      OperationTypeNode.QUERY,
+      'GetUser',
+      '*',
+      resolver,
+    )
     const request = createPostGraphQLRequest({
       query: LOGIN,
     })

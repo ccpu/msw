@@ -1,15 +1,20 @@
-import { FlatHeadersObject } from 'headers-utils'
-import { StrictEventEmitter } from 'strict-event-emitter'
+import { FlatHeadersObject } from 'headers-polyfill'
+import { Emitter } from 'strict-event-emitter'
 import {
   LifeCycleEventEmitter,
   LifeCycleEventsMap,
   SharedOptions,
 } from '../sharedOptions'
-import { ServiceWorkerMessage } from '../utils/createBroadcastChannel'
-import { RequestHandler } from '../handlers/RequestHandler'
-import { InterceptorApi } from '@mswjs/interceptors'
+import { ServiceWorkerMessage } from './start/utils/createMessageChannel'
+import {
+  DefaultBodyType,
+  RequestHandler,
+  RequestHandlerDefaultInfo,
+} from '../handlers/RequestHandler'
+import type { HttpRequestEventMap, Interceptor } from '@mswjs/interceptors'
 import { Path } from '../utils/matching/matchRequestUrl'
 import { RequiredDeep } from '../typeUtils'
+import { MockedRequest } from '../utils/request/MockedRequest'
 
 export type ResolvedPath = Path | URL
 
@@ -40,7 +45,7 @@ export interface ServiceWorkerIncomingRequest extends RequestWithoutMethods {
   /**
    * Text response body.
    */
-  body: string | undefined
+  body?: string
 }
 
 export type ServiceWorkerIncomingResponse = Pick<
@@ -76,20 +81,29 @@ export type ServiceWorkerOutgoingEventTypes =
  * Map of the events that can be sent to the Service Worker
  * only as a part of a single `fetch` event handler.
  */
-export type ServiceWorkerFetchEventTypes =
-  | 'MOCK_SUCCESS'
-  | 'MOCK_NOT_FOUND'
-  | 'NETWORK_ERROR'
-  | 'INTERNAL_ERROR'
+export interface ServiceWorkerFetchEventMap {
+  MOCK_RESPONSE(payload: SerializedResponse): void
+  MOCK_RESPONSE_START(payload: SerializedResponse): void
+
+  MOCK_NOT_FOUND(): void
+  NETWORK_ERROR(payload: { name: string; message: string }): void
+  INTERNAL_ERROR(payload: { status: number; body: string }): void
+}
+
+export interface ServiceWorkerBroadcastChannelMessageMap {
+  MOCK_RESPONSE_CHUNK(payload: Uint8Array): void
+  MOCK_RESPONSE_END(): void
+}
 
 export type WorkerLifecycleEventsMap = LifeCycleEventsMap<Response>
 
 export interface SetupWorkerInternalContext {
-  startOptions?: RequiredDeep<StartOptions>
+  isMockingEnabled: boolean
+  startOptions: RequiredDeep<StartOptions>
   worker: ServiceWorker | null
   registration: ServiceWorkerRegistration | null
   requestHandlers: RequestHandler[]
-  emitter: StrictEventEmitter<WorkerLifecycleEventsMap>
+  emitter: Emitter<WorkerLifecycleEventsMap>
   keepAliveInterval?: number
   workerChannel: {
     /**
@@ -133,7 +147,7 @@ export interface SetupWorkerInternalContext {
     >
   }
   useFallbackMode: boolean
-  fallbackInterceptor?: InterceptorApi
+  fallbackInterceptor?: Interceptor<HttpRequestEventMap>
 }
 
 export type ServiceWorkerInstanceTuple = [
@@ -148,9 +162,13 @@ export type FindWorker = (
 
 export interface StartOptions extends SharedOptions {
   /**
-   * Service Worker instance options.
+   * Service Worker registration options.
    */
   serviceWorker?: {
+    /**
+     * Custom url to the worker script.
+     * @default "/mockServiceWorker.js"
+     */
     url?: string
     options?: RegistrationOptions
   }
@@ -158,12 +176,14 @@ export interface StartOptions extends SharedOptions {
   /**
    * Disables the logging of captured requests
    * into browser's console.
+   * @default false
    */
   quiet?: boolean
 
   /**
    * Defers any network requests until the Service Worker
-   * instance is ready. Defaults to `true`.
+   * instance is activated.
+   * @default true
    */
   waitUntilReady?: boolean
 
@@ -174,11 +194,12 @@ export interface StartOptions extends SharedOptions {
   findWorker?: FindWorker
 }
 
-export interface SerializedResponse<BodyType = any> {
+export interface SerializedResponse<BodyType extends DefaultBodyType = any> {
   status: number
   statusText: string
   headers: FlatHeadersObject
   body: BodyType
+  delay?: number
 }
 
 export type StartReturnType = Promise<ServiceWorkerRegistration | undefined>
@@ -188,7 +209,7 @@ export type StartHandler = (
 ) => StartReturnType
 export type StopHandler = () => void
 
-export interface SetupWorkerApi {
+export interface SetupWorker {
   /**
    * Registers and activates the mock Service Worker.
    * @see {@link https://mswjs.io/docs/api/setup-worker/start `worker.start()`}
@@ -220,6 +241,19 @@ export interface SetupWorkerApi {
    * @see {@link https://mswjs.io/docs/api/setup-worker/reset-handlers `worker.resetHandlers()`}
    */
   resetHandlers: (...nextHandlers: RequestHandler[]) => void
+
+  /**
+   * Returns a readonly list of currently active request handlers.
+   * @see {@link https://mswjs.io/docs/api/setup-worker/list-handlers `worker.listHandlers()`}
+   */
+  listHandlers(): ReadonlyArray<
+    RequestHandler<
+      RequestHandlerDefaultInfo,
+      MockedRequest<DefaultBodyType>,
+      any,
+      MockedRequest<DefaultBodyType>
+    >
+  >
 
   /**
    * Lists all active request handlers.

@@ -1,9 +1,14 @@
 import { isNodeProcess } from 'is-node-process'
-import { Headers } from 'headers-utils'
-import { MockedRequest } from '../handlers/RequestHandler'
+import { Headers } from 'headers-polyfill'
+import { MockedRequest } from '../utils/request/MockedRequest'
 
 const useFetch: (input: RequestInfo, init?: RequestInit) => Promise<Response> =
-  isNodeProcess() ? require('node-fetch') : window.fetch
+  isNodeProcess()
+    ? (input, init) =>
+        import('node-fetch').then(({ default: nodeFetch }) =>
+          (nodeFetch as unknown as typeof window.fetch)(input, init),
+        )
+    : globalThis.fetch
 
 export const augmentRequestInit = (requestInit: RequestInit): RequestInit => {
   const headers = new Headers(requestInit.headers)
@@ -26,7 +31,11 @@ const createFetchRequestParameters = (input: MockedRequest): RequestInit => {
     return requestParameters
   }
 
-  if (typeof body === 'object' || typeof body === 'number') {
+  if (
+    typeof body === 'object' ||
+    typeof body === 'number' ||
+    typeof body === 'boolean'
+  ) {
     requestParameters.body = JSON.stringify(body)
   } else {
     requestParameters.body = body

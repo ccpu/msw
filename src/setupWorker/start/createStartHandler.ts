@@ -2,10 +2,10 @@ import { until } from '@open-draft/until'
 import { getWorkerInstance } from './utils/getWorkerInstance'
 import { enableMocking } from './utils/enableMocking'
 import { SetupWorkerInternalContext, StartHandler } from '../glossary'
-import { createRequestListener } from '../../utils/worker/createRequestListener'
+import { createRequestListener } from './createRequestListener'
 import { requestIntegrityCheck } from '../../utils/internal/requestIntegrityCheck'
 import { deferNetworkRequestsUntil } from '../../utils/deferNetworkRequestsUntil'
-import { createResponseListener } from '../../utils/worker/createResponseListener'
+import { createResponseListener } from './createResponseListener'
 import { validateWorkerScope } from './utils/validateWorkerScope'
 import { devUtils } from '../../utils/internal/devUtils'
 
@@ -25,6 +25,7 @@ export const createStartHandler = (
         createRequestListener(context, options),
       )
 
+      // Handle responses signaled by the worker.
       context.workerChannel.on('RESPONSE', createResponseListener(context))
 
       const instance = await getWorkerInstance(
@@ -92,10 +93,6 @@ If this message still persists after updating, please report an issue: https://g
       `)
       }
 
-      await enableMocking(context, options).catch((err) => {
-        throw new Error(`Failed to enable mocking: ${err?.message}`)
-      })
-
       context.keepAliveInterval = window.setInterval(
         () => context.workerChannel.send('KEEPALIVE_REQUEST'),
         5000,
@@ -108,7 +105,31 @@ If this message still persists after updating, please report an issue: https://g
       return registration
     }
 
-    const workerRegistration = startWorkerInstance()
+    const workerRegistration = startWorkerInstance().then(
+      async (registration) => {
+        const pendingInstance = registration.installing || registration.waiting
+
+        // Wait until the worker is activated.
+        // Assume the worker is already activated if there's no pending registration
+        // (i.e. when reloading the page after a successful activation).
+        if (pendingInstance) {
+          await new Promise<void>((resolve) => {
+            pendingInstance.addEventListener('statechange', () => {
+              if (pendingInstance.state === 'activated') {
+                return resolve()
+              }
+            })
+          })
+        }
+
+        // Print the activation message only after the worker has been activated.
+        await enableMocking(context, options).catch((error) => {
+          throw new Error(`Failed to enable mocking: ${error?.message}`)
+        })
+
+        return registration
+      },
+    )
 
     // Defer any network requests until the Service Worker instance is ready.
     // This prevents a race condition between the Service Worker registration

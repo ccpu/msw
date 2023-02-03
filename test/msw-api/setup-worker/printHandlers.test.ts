@@ -24,7 +24,6 @@ test('lists rest request handlers', async () => {
   })
 
   const startGroupCollapsed = consoleSpy.get('startGroupCollapsed')
-  const log = consoleSpy.get('log')
 
   expect(startGroupCollapsed).toHaveLength(6)
   expect(startGroupCollapsed).toContain(
@@ -41,15 +40,9 @@ test('lists rest request handlers', async () => {
   expect(startGroupCollapsed).toContain(
     '[graphql] all (origin: https://api.github.com)',
   )
-
-  const matchSuggestions = log.filter((message) => message.startsWith('Match:'))
-  expect(matchSuggestions).toHaveLength(1)
-  expect(matchSuggestions).toEqual([
-    'Match: https://mswjs.io/repl?path=https://test.mswjs.io/book/:bookId',
-  ])
 })
 
-test('respects runtime request handlers', async () => {
+test('includes runtime request handlers', async () => {
   const { page, consoleSpy } = await createRuntime()
 
   await page.evaluate(() => {
@@ -63,18 +56,11 @@ test('respects runtime request handlers', async () => {
   })
 
   const startGroupCollapsed = consoleSpy.get('startGroupCollapsed')
-  const log = consoleSpy.get('log')
 
   expect(startGroupCollapsed).toHaveLength(8)
 
   expect(startGroupCollapsed).toContain('[rest] POST /profile')
   expect(startGroupCollapsed).toContain(
     '[graphql] query SubmitTransaction (origin: *)',
-  )
-
-  const matchSuggestions = log.filter((message) => message.startsWith('Match:'))
-  expect(matchSuggestions).toHaveLength(2)
-  expect(matchSuggestions).toContain(
-    'Match: https://mswjs.io/repl?path=/profile',
   )
 })

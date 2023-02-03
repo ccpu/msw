@@ -1,7 +1,11 @@
 import * as context from './context'
+import { checkGlobals } from './utils/internal/checkGlobals'
 export { context }
 
 export { setupWorker } from './setupWorker/setupWorker'
+
+export { SetupApi } from './SetupApi'
+
 export {
   response,
   defaultResponse,
@@ -19,21 +23,21 @@ export { GraphQLHandler, graphqlContext } from './handlers/GraphQLHandler'
 export { matchRequestUrl } from './utils/matching/matchRequestUrl'
 export { compose } from './utils/internal/compose'
 export * from './utils/handleRequest'
-export * from './utils/request/parseIsomorphicRequest'
 export { cleanUrl } from './utils/url/cleanUrl'
 
 /**
  * Type definitions.
  */
-export type { SetupWorkerApi, StartOptions } from './setupWorker/glossary'
+export type { SetupWorker, StartOptions } from './setupWorker/glossary'
+export { SetupWorkerApi } from './setupWorker/setupWorker'
 export type { SharedOptions } from './sharedOptions'
 
+export * from './utils/request/MockedRequest'
 export type {
-  MockedRequest,
   ResponseResolver,
   ResponseResolverReturnType,
   AsyncResponseResolverReturnType,
-  DefaultRequestBody,
+  DefaultBodyType,
   DefaultRequestMultipartBody,
 } from './handlers/RequestHandler'
 
@@ -46,9 +50,9 @@ export type {
 } from './response'
 
 export type {
+  RestRequest,
   RestContext,
   RequestQuery,
-  RestRequest,
   ParsedRestRequest,
 } from './handlers/RestHandler'
 
@@ -63,3 +67,9 @@ export type {
 export type { Path, PathParams, Match } from './utils/matching/matchRequestUrl'
 export type { DelayMode } from './context/delay'
 export { ParsedGraphQLRequest } from './utils/internal/parseGraphQLRequest'
+
+// Validate environmental globals before executing any code.
+// This ensures that the library gives user-friendly errors
+// when ran in the environments that require additional polyfills
+// from the end user.
+checkGlobals()

@@ -2,7 +2,8 @@
  * @jest-environment jsdom
  */
 import { getRequestCookies } from './getRequestCookies'
-import { createMockedRequest } from '../../../test/support/utils'
+import { clearCookies } from '../../../test/support/utils'
+import { MockedRequest } from './MockedRequest'
 
 beforeAll(() => {
   // Emulate some `document.cookie` value.
@@ -11,14 +12,12 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  // Clean up the `document.cookie` value.
-  document.cookie = ''
+  clearCookies()
 })
 
 test('returns all document cookies given "include" credentials', () => {
   const cookies = getRequestCookies(
-    createMockedRequest({
-      url: new URL(`${location.origin}/user`),
+    new MockedRequest(new URL('/user', location.origin), {
       credentials: 'include',
     }),
   )
@@ -31,8 +30,7 @@ test('returns all document cookies given "include" credentials', () => {
 
 test('returns all document cookies given "same-origin" credentials and the same request origin', () => {
   const cookies = getRequestCookies(
-    createMockedRequest({
-      url: new URL(`${location.origin}/user`),
+    new MockedRequest(new URL('/user', location.origin), {
       credentials: 'same-origin',
     }),
   )
@@ -45,8 +43,7 @@ test('returns all document cookies given "same-origin" credentials and the same 
 
 test('returns an empty object given "same-origin" credentials and a different request origin', () => {
   const cookies = getRequestCookies(
-    createMockedRequest({
-      url: new URL(`https://test.mswjs.io/user`),
+    new MockedRequest(new URL('https://test.mswjs.io/user'), {
       credentials: 'same-origin',
     }),
   )
@@ -56,8 +53,7 @@ test('returns an empty object given "same-origin" credentials and a different re
 
 test('returns an empty object given "omit" credentials', () => {
   const cookies = getRequestCookies(
-    createMockedRequest({
-      url: new URL(`${location.origin}/user`),
+    new MockedRequest(new URL('/user', location.origin), {
       credentials: 'omit',
     }),
   )

@@ -2,12 +2,8 @@ import fetch from 'node-fetch'
 import { rest } from 'msw'
 import { setupServer } from 'msw/node'
 
-type RequestParams = {
-  maxCount: string
-}
-
 const server = setupServer(
-  rest.get<never, RequestParams>(
+  rest.get<never, { maxCount: string }>(
     '/polling/:maxCount',
     function* (req, res, ctx) {
       const maxCount = parseInt(req.params.maxCount)
@@ -32,7 +28,7 @@ const server = setupServer(
     },
   ),
 
-  rest.get<never, RequestParams>(
+  rest.get<never, { maxCount: string }>(
     '/polling/once/:maxCount',
     function* (req, res, ctx) {
       const maxCount = parseInt(req.params.maxCount)
@@ -56,9 +52,12 @@ const server = setupServer(
       )
     },
   ),
-  rest.get<never, RequestParams>('/polling/once/:maxCount', (req, res, ctx) => {
-    return res(ctx.json({ status: 'done' }))
-  }),
+  rest.get<never, { maxCount: string }>(
+    '/polling/once/:maxCount',
+    (req, res, ctx) => {
+      return res(ctx.json({ status: 'done' }))
+    },
+  ),
 )
 
 beforeAll(() => {

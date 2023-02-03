@@ -1,4 +1,4 @@
-import { DocumentNode } from 'graphql'
+import type { DocumentNode, OperationTypeNode } from 'graphql'
 import { ResponseResolver } from './handlers/RequestHandler'
 import {
   GraphQLHandler,
@@ -36,7 +36,12 @@ function createScopedGraphQLHandler(
       GraphQLContext<Query>
     >,
   ) => {
-    return new GraphQLHandler(operationType, operationName, url, resolver)
+    return new GraphQLHandler<GraphQLRequest<Variables>>(
+      operationType,
+      operationName,
+      url,
+      resolver,
+    )
   }
 }
 
@@ -50,7 +55,12 @@ function createGraphQLOperationHandler(url: Path) {
       GraphQLContext<Query>
     >,
   ) => {
-    return new GraphQLHandler('all', new RegExp('.*'), url, resolver)
+    return new GraphQLHandler<GraphQLRequest<Variables>>(
+      'all',
+      new RegExp('.*'),
+      url,
+      resolver,
+    )
   }
 }
 
@@ -73,7 +83,7 @@ const standardGraphQLHandlers = {
    * })
    * @see {@link https://mswjs.io/docs/api/graphql/query `graphql.query()`}
    */
-  query: createScopedGraphQLHandler('query', '*'),
+  query: createScopedGraphQLHandler('query' as OperationTypeNode, '*'),
 
   /**
    * Captures a GraphQL mutation by a given name.
@@ -83,14 +93,14 @@ const standardGraphQLHandlers = {
    * })
    * @see {@link https://mswjs.io/docs/api/graphql/mutation `graphql.mutation()`}
    */
-  mutation: createScopedGraphQLHandler('mutation', '*'),
+  mutation: createScopedGraphQLHandler('mutation' as OperationTypeNode, '*'),
 }
 
 function createGraphQLLink(url: Path): typeof standardGraphQLHandlers {
   return {
     operation: createGraphQLOperationHandler(url),
-    query: createScopedGraphQLHandler('query', url),
-    mutation: createScopedGraphQLHandler('mutation', url),
+    query: createScopedGraphQLHandler('query' as OperationTypeNode, url),
+    mutation: createScopedGraphQLHandler('mutation' as OperationTypeNode, url),
   }
 }
 

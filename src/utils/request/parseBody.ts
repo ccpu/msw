@@ -1,6 +1,6 @@
-import { MockedRequest } from '../../handlers/RequestHandler'
 import { jsonParse } from '../internal/jsonParse'
 import { parseMultipartData } from '../internal/parseMultipartData'
+import { MockedRequest } from './MockedRequest'
 
 /**
  * Parses a given request/response body based on the "Content-Type" header.
@@ -11,7 +11,7 @@ export function parseBody(body?: MockedRequest['body'], headers?: Headers) {
     return body
   }
 
-  const contentType = headers?.get('content-type') || ''
+  const contentType = headers?.get('content-type')?.toLowerCase() || ''
 
   // If the body has a Multipart Content-Type
   // parse it into an object.

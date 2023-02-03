@@ -1,5 +1,10 @@
-import { Headers } from 'headers-utils'
-import { MockedResponse, response, ResponseComposition } from '../response'
+import { Headers } from 'headers-polyfill'
+import {
+  MaybePromise,
+  MockedResponse,
+  response,
+  ResponseComposition,
+} from '../response'
 import { getCallFrame } from '../utils/internal/getCallFrame'
 import { isIterable } from '../utils/internal/isIterable'
 import { status } from '../context/status'
@@ -8,8 +13,16 @@ import { delay } from '../context/delay'
 import { fetch } from '../context/fetch'
 import { ResponseResolutionContext } from '../utils/getResponse'
 import { SerializedResponse } from '../setupWorker/glossary'
+import { MockedRequest } from '../utils/request/MockedRequest'
 
-export const defaultContext = {
+export type DefaultContext = {
+  status: typeof status
+  set: typeof set
+  delay: typeof delay
+  fetch: typeof fetch
+}
+
+export const defaultContext: DefaultContext = {
   status,
   set,
   delay,
@@ -21,31 +34,14 @@ export type DefaultRequestMultipartBody = Record<
   string | File | (string | File)[]
 >
 
-export type DefaultRequestBody =
+export type DefaultBodyType =
   | Record<string, any>
   | DefaultRequestMultipartBody
   | string
   | number
+  | boolean
+  | null
   | undefined
-
-export interface MockedRequest<Body = DefaultRequestBody> {
-  id: string
-  url: URL
-  method: Request['method']
-  headers: Headers
-  cookies: Record<string, string>
-  mode: Request['mode']
-  keepalive: Request['keepalive']
-  cache: Request['cache']
-  destination: Request['destination']
-  integrity: Request['integrity']
-  credentials: Request['credentials']
-  redirect: Request['redirect']
-  referrer: Request['referrer']
-  referrerPolicy: Request['referrerPolicy']
-  body: Body
-  bodyUsed: Request['bodyUsed']
-}
 
 export interface RequestHandlerDefaultInfo {
   header: string
@@ -62,9 +58,9 @@ export type ResponseResolverReturnType<ReturnType> =
   | undefined
   | void
 
-export type MaybeAsyncResponseResolverReturnType<ReturnType> =
-  | ResponseResolverReturnType<ReturnType>
-  | Promise<ResponseResolverReturnType<ReturnType>>
+export type MaybeAsyncResponseResolverReturnType<ReturnType> = MaybePromise<
+  ResponseResolverReturnType<ReturnType>
+>
 
 export type AsyncResponseResolverReturnType<ReturnType> =
   | MaybeAsyncResponseResolverReturnType<ReturnType>
@@ -77,7 +73,7 @@ export type AsyncResponseResolverReturnType<ReturnType> =
 export type ResponseResolver<
   RequestType = MockedRequest,
   ContextType = typeof defaultContext,
-  BodyType = any,
+  BodyType extends DefaultBodyType = any,
 > = (
   req: RequestType,
   res: ResponseComposition<BodyType>,
@@ -144,7 +140,6 @@ export abstract class RequestHandler<
   abstract log(
     request: Request,
     response: SerializedResponse<any>,
-    handler: this,
     parsedResult: ParsedResult,
   ): void
 
@@ -268,5 +263,24 @@ export abstract class RequestHandler<
       request,
       response: response || null,
     }
+  }
+}
+
+/**
+ * Bypass this intercepted request.
+ * This will make a call to the actual endpoint requested.
+ */
+export function passthrough(): MockedResponse<null> {
+  // Constructing a dummy "101 Continue" mocked response
+  // to keep the return type of the resolver consistent.
+  return {
+    status: 101,
+    statusText: 'Continue',
+    headers: new Headers(),
+    body: null,
+    // Setting "passthrough" to true will signal the response pipeline
+    // to perform this intercepted request as-is.
+    passthrough: true,
+    once: false,
   }
 }

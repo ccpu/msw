@@ -1,15 +1,5 @@
-import {
-  body,
-  cookie,
-  delay,
-  fetch,
-  json,
-  set,
-  status,
-  text,
-  xml,
-} from '../context'
-import { SerializedResponse } from '../setupWorker/glossary'
+import { body, cookie, json, text, xml } from '../context'
+import type { SerializedResponse } from '../setupWorker/glossary'
 import { ResponseResolutionContext } from '../utils/getResponse'
 import { devUtils } from '../utils/internal/devUtils'
 import { isStringEqual } from '../utils/internal/isStringEqual'
@@ -24,10 +14,12 @@ import {
   PathParams,
 } from '../utils/matching/matchRequestUrl'
 import { getPublicUrlFromRequest } from '../utils/request/getPublicUrlFromRequest'
+import { MockedRequest } from '../utils/request/MockedRequest'
 import { cleanUrl, getSearchParams } from '../utils/url/cleanUrl'
 import {
-  DefaultRequestBody,
-  MockedRequest,
+  DefaultBodyType,
+  defaultContext,
+  DefaultContext,
   RequestHandler,
   RequestHandlerDefaultInfo,
   ResponseResolver,
@@ -52,49 +44,57 @@ export enum RESTMethods {
 
 // Declaring a context interface infers
 // JSDoc description of the referenced utils.
-export type RestContext = {
-  set: typeof set
-  status: typeof status
+export type RestContext = DefaultContext & {
   cookie: typeof cookie
   text: typeof text
   body: typeof body
   json: typeof json
   xml: typeof xml
-  delay: typeof delay
-  fetch: typeof fetch
 }
 
 export const restContext: RestContext = {
-  set,
-  status,
+  ...defaultContext,
   cookie,
   body,
   text,
   json,
   xml,
-  delay,
-  fetch,
 }
 
 export type RequestQuery = {
   [queryName: string]: string
 }
 
-export interface RestRequest<
-  BodyType extends DefaultRequestBody = DefaultRequestBody,
-  ParamsType extends PathParams = PathParams,
-> extends MockedRequest<BodyType> {
-  params: ParamsType
-}
-
 export type ParsedRestRequest = Match
+
+export class RestRequest<
+  RequestBody extends DefaultBodyType = DefaultBodyType,
+  RequestParams extends PathParams = PathParams,
+> extends MockedRequest<RequestBody> {
+  constructor(
+    request: MockedRequest<RequestBody>,
+    public readonly params: RequestParams,
+  ) {
+    super(request.url, {
+      ...request,
+      /**
+       * @deprecated https://github.com/mswjs/msw/issues/1318
+       * @note Use internal request body buffer as the body init
+       * because "request.body" is a getter that will trigger
+       * request body parsing at this step.
+       */
+      body: request['_body'],
+    })
+    this.id = request.id
+  }
+}
 
 /**
  * Request handler for REST API requests.
  * Provides request matching based on method and URL.
  */
 export class RestHandler<
-  RequestType extends MockedRequest<DefaultRequestBody> = MockedRequest<DefaultRequestBody>,
+  RequestType extends MockedRequest<DefaultBodyType> = MockedRequest<DefaultBodyType>,
 > extends RequestHandler<
   RestHandlerInfo,
   RequestType,
@@ -162,10 +162,7 @@ export class RestHandler<
     request: RequestType,
     parsedResult: ParsedRestRequest,
   ): RestRequest<any, PathParams> {
-    return {
-      ...request,
-      params: parsedResult.params || {},
-    }
+    return new RestRequest(request, parsedResult.params || {})
   }
 
   predicate(request: RequestType, parsedResult: ParsedRestRequest) {
@@ -177,7 +174,7 @@ export class RestHandler<
     return matchesMethod && parsedResult.matches
   }
 
-  log(request: RequestType, response: SerializedResponse) {
+  log(request: RequestType, response: SerializedResponse<any>) {
     const publicUrl = getPublicUrlFromRequest(request)
     const loggedRequest = prepareRequest(request)
     const loggedResponse = prepareResponse(response)
@@ -193,10 +190,7 @@ export class RestHandler<
       'color:inherit',
     )
     console.log('Request', loggedRequest)
-    console.log('Handler:', {
-      mask: this.info.path,
-      resolver: this.resolver,
-    })
+    console.log('Handler:', this)
     console.log('Response', loggedResponse)
     console.groupEnd()
   }

@@ -1,4 +1,4 @@
-import { DefaultRequestBody, ResponseResolver } from './handlers/RequestHandler'
+import { DefaultBodyType, ResponseResolver } from './handlers/RequestHandler'
 import {
   RESTMethods,
   RestContext,
@@ -11,9 +11,9 @@ function createRestHandler<Method extends RESTMethods | RegExp>(
   method: Method,
 ) {
   return <
-    RequestBodyType extends DefaultRequestBody = DefaultRequestBody,
-    Params extends PathParams = PathParams,
-    ResponseBody extends DefaultRequestBody = DefaultRequestBody,
+    RequestBodyType extends DefaultBodyType = DefaultBodyType,
+    Params extends PathParams<keyof Params> = PathParams,
+    ResponseBody extends DefaultBodyType = DefaultBodyType,
   >(
     path: Path,
     resolver: ResponseResolver<
